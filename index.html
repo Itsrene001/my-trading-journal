@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>My Trading Journal</title>
+    <style>
+        /* --- Base & Visuals --- */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Inter', Arial, sans-serif;
+            background-image: url('https://framerusercontent.com/images/Ur88kVWmRdlyXbNVYmaw7y3rdQU.png?width=2752&height=1536');
+            background-size: cover; background-position: center; background-repeat: no-repeat;
+            background-attachment: fixed; color: #f5f5f5; min-height: 100vh;
+        }
+
+        .hidden { display: none !important; }
+        .blur { filter: blur(12px); pointer-events: none; opacity: 0.4; }
+
+        /* --- Loading Spinner --- */
+        #loading-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #0f1115; z-index: 10000; display: flex;
+            flex-direction: column; align-items: center; justify-content: center;
+        }
+        .spinner {
+            width: 40px; height: 40px; border: 3px solid rgba(255,255,255,0.1);
+            border-top: 3px solid #3BDE6B; border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* --- UI Components --- */
+        .container { max-width: 1200px; margin: auto; padding: 24px; }
+        .card { background: rgba(23, 26, 33, 0.9); border: 1px solid #262b36; border-radius: 14px; padding: 20px; margin-bottom: 20px; backdrop-filter: blur(8px); }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; }
+        label { font-size: 11px; color: #9da6b5; display: block; margin-bottom: 6px; text-transform: uppercase; }
+        input, select, textarea, button { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #303645; background: #0f1115; color: #fff; font-size: 14px; }
+        textarea { min-height: 80px; resize: vertical; margin-top: 10px; }
+        button { cursor: pointer; background: #fff; color: #000; font-weight: 600; border: none; transition: 0.2s; }
+        button.secondary { background: transparent; color: #fff; border: 1px solid #303645; }
+        /* Add this to your CSS section */
+.fade-out {
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    pointer-events: none; /* Prevents clicking it while it's invisible */
+}
+
+#auth-success {
+    color: #3BDE6B;
+    font-size: 12px;
+    text-align: center;
+    font-weight: 600;
+    margin-bottom: 10px;
+    
+    /* Smoothness settings */
+    opacity: 0;
+    transform: translateY(-10px);
+    transition: opacity 0.4s ease, transform 0.4s ease;
+    pointer-events: none;
+    height: 0; /* Keeps it from taking space when invisible */
+    overflow: hidden;
+}
+
+#auth-success.show {
+    opacity: 1;
+    transform: translateY(0);
+    height: auto; /* Snaps to content size smoothly */
+    margin-top: 10px;
+}
+        #auth-success, #auth-error {transition: opacity 0.5s ease;}
+        
+        /* --- Stats & EV --- */
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; }
+        .stat-box { background: rgba(17, 20, 27, 0.9); border: 1px solid #262b36; border-radius: 12px; padding: 16px; transition: all 0.4s ease; }
+        .stat-value { font-size: 26px; font-weight: 700; margin-top: 4px; }
+
+        /* --- Chart --- */
+        #chart-wrapper { position: relative; width: 100%; height: 300px; margin: 20px 0; }
+        canvas { width: 100%; height: 100%; background: rgba(15, 17, 21, 0.8); border-radius: 14px; border: 1px solid #262b36; }
+
+        /* --- Table --- */
+        .table-scroll { overflow-x: auto; margin-top: 10px; }
+        table { width: 100%; border-collapse: collapse; min-width: 900px; }
+        th, td { padding: 14px; text-align: left; border-bottom: 1px solid #262b36; font-size: 13px; }
+        .result-win { color: #3BDE6B; font-weight: 600; }
+        .result-loss { color: #FF4D4D; font-weight: 600; }
+        
+        #auth-overlay { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 9999; width: 90%; max-width: 400px; }
+        #auth-error { color: #FF4D4D; font-size: 12px; text-align: center; margin-bottom: 10px; font-weight: 600; }
+        footer { text-align: center; padding: 40px; color: #4b515d; font-size: 11px; }
+    </style>
+</head>
+<body>
+
+<div id="loading-overlay"><div class="spinner"></div></div>
+
+<section id="landing-page" style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; text-align:center; background:rgba(15,17,21,0.7);">
+    <h1>Focus on the Process.</h1>
+    <p>Visualize your edge with My Trading Journal.</p>
+    <button class="btn-main" onclick="openAuthSelection()" style="margin-top:20px; padding:16px 48px; border-radius:50px;">Launch Terminal</button>
+</section>
+
+<div id="auth-overlay" class="hidden">
+    <div id="auth-selection" class="card">
+        <h2 style="text-align:center; margin-bottom:24px;">Secure Access</h2>
+        <button onclick="showAuthForm('login')">Sign In</button>
+        <button class="secondary" style="margin-top:10px;" onclick="showAuthForm('signup')">Create Account</button>
+    </div>
+    <div id="auth-form" class="card hidden">
+    <h2 id="auth-title">Login</h2>
+      <div style="display:grid; gap: 12px;">
+        <div id="auth-error" class="hidden"></div>
+        <div id="auth-success" style="color: #3BDE6B; font-size: 12px; text-align: center; display: none;"></div>
+        
+        <input id="email" type="email" placeholder="Email" />
+        <input id="password" type="password" placeholder="Password" />
+        
+        <button onclick="processAuth()">Verify & Launch</button>
+        
+        <p style="font-size: 11px; text-align: center; color: #9da6b5; cursor: pointer;" onclick="resetPassword()">
+            Forgot Password?
+        </p>
+        
+        <button class="secondary" onclick="openAuthSelection()">Back</button>
+      </div>
+  </div>
+</div>
+
+<div id="dashboard" class="container hidden">
+    <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+        <h1>Terminal Dashboard</h1>
+        <button onclick="handleLogout()" style="width: auto; padding: 6px 14px; font-size: 12px;">Logout</button>
+    </div>
+
+    <div class="card">
+        <h2>Log Execution</h2>
+        <div class="grid">
+            <div><label>Date</label><input type="date" id="trade-date" /></div>
+            <div><label>Instrument</label><input id="trade-pair" placeholder="e.g. NAS100" /></div>
+            <div><label>Session</label><select id="trade-session"><option>London</option><option>New York</option><option>Asia</option></select></div>
+            <div><label>Result</label><select id="trade-result"><option value="Win">Win</option><option value="Loss">Loss</option><option value="Breakeven">Breakeven</option></select></div>
+            <div><label>RR</label><input type="number" id="trade-rr" step="0.1" placeholder="2.0" /></div>
+            <div><label>Risk %</label><input type="number" id="trade-risk" step="0.1" placeholder="0.5" /></div>
+        </div>
+        <textarea id="trade-notes" placeholder="Execution notes..."></textarea>
+        <div style="display:flex; gap: 10px; margin-top: 15px;">
+            <button onclick="saveTradeToCloud()" style="flex: 2;">Save Trade</button>
+            <button class="secondary" onclick="exportCSV()">Export</button>
+        </div>
+    </div>
+
+    <div class="card" style="border-color: #303645;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+            <div>
+                <label>Time Horizon</label>
+                <select id="filter-time" onchange="toggleCustomDate(); applyFilters();">
+                    <option value="today">Today</option>
+                    <option value="7">Last 7 Days</option>
+                    <option value="last10">Last 10 Trades</option>
+                    <option value="thisMonth">This Month</option>
+                    <option value="3months">Last 3 Months</option>
+                    <option value="thisYear">This Year</option>
+                    <option value="all" selected>All Time</option>
+                    <option value="custom">Custom Range...</option>
+                </select>
+            </div>
+            <div><label>Pair</label><input id="filter-pair" placeholder="Search..." oninput="applyFilters()"></div>
+            <div>
+                <label>Session</label>
+                <select id="filter-session" onchange="applyFilters()">
+                    <option value="All">All Sessions</option>
+                    <option value="London">London</option>
+                    <option value="New York">New York</option>
+                    <option value="Asia">Asia</option>
+                </select>
+            </div>
+        </div>
+        <div id="custom-date-row" class="hidden" style="display: flex; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #262b36;">
+            <div style="flex:1;"><label>From</label><input type="date" id="date-start" onchange="applyFilters()"></div>
+            <div style="flex:1;"><label>To</label><input type="date" id="date-end" onchange="applyFilters()"></div>
+        </div>
+    </div>
+
+    <div class="stats">
+        <div class="stat-box"><div style="color:#9da6b5; font-size:12px;">Total</div><div class="stat-value" id="stat-total">0</div></div>
+        <div class="stat-box"><div style="color:#9da6b5; font-size:12px;">Win Rate</div><div class="stat-value" id="stat-wr">0%</div></div>
+        <div class="stat-box"><div style="color:#9da6b5; font-size:12px;">Net R</div><div class="stat-value" id="stat-netR">0R</div></div>
+        <div class="stat-box" id="ev-card">
+            <div style="color:#9da6b5; font-size:12px;">Expected Value</div>
+            <div class="stat-value" id="stat-ev">0.00R</div>
+            <div id="ev-warning" style="font-size: 10px; margin-top: 4px; font-weight: bold;">-</div>
+        </div>
+    </div>
+
+    <div id="chart-wrapper"><canvas id="equityChart"></canvas></div>
+
+    <div class="card">
+        <div class="table-scroll">
+            <table>
+                <thead><tr><th>Date</th><th>Pair</th><th>Session</th><th>Risk</th><th>RR</th><th>Result</th><th>Action</th></tr></thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<footer>&copy; 2026 My Trading Journal. All Rights Reserved. Proprietary Software.</footer>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { 
+    getAuth, 
+    createUserWithEmailAndPassword, 
+    signInWithEmailAndPassword, 
+    signOut, 
+    onAuthStateChanged,
+    sendPasswordResetEmail // <--- Add this one
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import { getFirestore, collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, serverTimestamp, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyAy5hoeIA7CcKR_mWlqzbjUcK8lCr1ituk",
+        authDomain: "myjournal-b613e.firebaseapp.com",
+        projectId: "myjournal-b613e",
+        storageBucket: "myjournal-b613e.appspot.app",
+        messagingSenderId: "225316166924",
+        appId: "1:225316166924:web:a64815758865f073ae7d29"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    let currentTrades = [];
+    let authMode = 'login';
+
+    window.addEventListener('load', () => setTimeout(() => document.getElementById('loading-overlay').classList.add('hidden'), 800));
+
+    /* --- Auth Logic --- */
+    window.openAuthSelection = () => {
+        document.getElementById('landing-page').classList.add('hidden');
+        document.getElementById('auth-overlay').classList.remove('hidden');
+        document.getElementById('auth-selection').classList.remove('hidden');
+        document.getElementById('auth-form').classList.add('hidden');
+    };
+
+    window.showAuthForm = (mode) => {
+        authMode = mode;
+        document.getElementById('auth-title').innerText = mode === 'login' ? 'Sign In' : 'Join Us';
+        document.getElementById('auth-selection').classList.add('hidden');
+        document.getElementById('auth-form').classList.remove('hidden');
+    };
+
+    window.processAuth = async () => {
+        const email = document.getElementById('email').value;
+        const pass = document.getElementById('password').value;
+        const errorDiv = document.getElementById('auth-error');
+        errorDiv.classList.add('hidden');
+        try {
+            if(authMode === 'signup') await createUserWithEmailAndPassword(auth, email, pass);
+            else await signInWithEmailAndPassword(auth, email, pass);
+        } catch (e) {
+            errorDiv.classList.remove('hidden');
+            errorDiv.innerText = e.code === 'auth/wrong-password' ? "Incorrect password." : "Auth failed.";
+        }
+    };
+
+    window.resetPassword = async () => {
+    const email = document.getElementById('email').value;
+    const errorDiv = document.getElementById('auth-error');
+    const successDiv = document.getElementById('auth-success');
+
+    if (!email) {
+        errorDiv.classList.remove('hidden', 'fade-out');
+        errorDiv.innerText = "Enter your email first.";
+        setTimeout(() => { errorDiv.classList.add('fade-out'); }, 2500);
+        return;
+    }
+
+    try {
+        await sendPasswordResetEmail(auth, email);
+        
+        // Reset states
+        errorDiv.classList.add('hidden');
+        successDiv.classList.remove('hidden', 'fade-out');
+        successDiv.style.display = 'block'; // Force visibility
+        successDiv.innerText = "Reset email sent! Check inbox.";
+
+        // --- THE TIMER ---
+        setTimeout(() => {
+            successDiv.classList.add('fade-out');
+            // After the fade animation finishes, fully hide it
+            setTimeout(() => {
+                successDiv.style.display = 'none';
+                successDiv.classList.remove('fade-out');
+            }, 500); 
+        }, 3000);
+
+    } catch (e) {
+        successDiv.style.display = 'none';
+        errorDiv.classList.remove('hidden', 'fade-out');
+        errorDiv.innerText = "Account not found or error.";
+        setTimeout(() => { errorDiv.classList.add('fade-out'); }, 3000);
+    }
+};
+
+    window.handleLogout = () => signOut(auth);
+
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            document.getElementById('landing-page').classList.add('hidden');
+            document.getElementById('auth-overlay').classList.add('hidden');
+            document.getElementById('dashboard').classList.remove('hidden');
+            fetchTrades();
+        } else {
+            document.getElementById('landing-page').classList.remove('hidden');
+            document.getElementById('dashboard').classList.add('hidden');
+        }
+    });
+
+    /* --- Filter Logic --- */
+    window.toggleCustomDate = () => {
+        const isCustom = document.getElementById('filter-time').value === 'custom';
+        document.getElementById('custom-date-row').classList.toggle('hidden', !isCustom);
+    };
+
+    window.applyFilters = () => renderDashboard();
+
+    /* --- Data Handling --- */
+    async function fetchTrades() {
+        const user = auth.currentUser;
+        if(!user) return;
+        const q = query(collection(db, "users", user.uid, "trades"), orderBy("createdAt", "desc"));
+        const snap = await getDocs(q);
+        currentTrades = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderDashboard();
+    }
+
+    window.saveTradeToCloud = async () => {
+        const trade = {
+            date: document.getElementById('trade-date').value,
+            pair: document.getElementById('trade-pair').value.toUpperCase(),
+            session: document.getElementById('trade-session').value,
+            result: document.getElementById('trade-result').value,
+            rr: parseFloat(document.getElementById('trade-rr').value || 0),
+            risk: parseFloat(document.getElementById('trade-risk').value || 0),
+            notes: document.getElementById('trade-notes').value,
+            createdAt: serverTimestamp()
+        };
+        if(!trade.date || !trade.pair) return alert("Date and Pair required.");
+        await addDoc(collection(db, "users", auth.currentUser.uid, "trades"), trade);
+        fetchTrades();
+    };
+
+    window.deleteTrade = async (id) => {
+        if(confirm("Delete trade?")) {
+            await deleteDoc(doc(db, "users", auth.currentUser.uid, "trades", id));
+            fetchTrades();
+        }
+    };
+
+    /* --- Render & Math --- */
+    function renderDashboard() {
+        const pairFilter = document.getElementById('filter-pair').value.toUpperCase();
+        const sessionFilter = document.getElementById('filter-session').value;
+        const timeFilter = document.getElementById('filter-time').value;
+        const now = new Date();
+        const todayStr = now.toISOString().split('T')[0];
+
+        let sorted = [...currentTrades].sort((a, b) => new Date(b.date) - new Date(a.date));
+        
+        let filtered = sorted.filter(t => {
+            let matchesTime = true;
+            if (timeFilter === "today") matchesTime = t.date === todayStr;
+            else if (timeFilter === "7") matchesTime = (now - new Date(t.date)) / 86400000 <= 7;
+            else if (timeFilter === "thisMonth") matchesTime = new Date(t.date).getMonth() === now.getMonth();
+            else if (timeFilter === "3months") matchesTime = (now - new Date(t.date)) / 86400000 <= 90;
+            else if (timeFilter === "thisYear") matchesTime = new Date(t.date).getFullYear() === now.getFullYear();
+            else if (timeFilter === "custom") {
+                const s = document.getElementById('date-start').value;
+                const e = document.getElementById('date-end').value;
+                matchesTime = s && e ? (t.date >= s && t.date <= e) : true;
+            }
+
+            const matchesPair = pairFilter === "" || t.pair.includes(pairFilter);
+            const matchesSession = sessionFilter === "All" || t.session === sessionFilter;
+            return matchesTime && matchesPair && matchesSession;
+        });
+
+        if (timeFilter === "last10") filtered = filtered.slice(0, 10);
+
+        const wins = filtered.filter(t => t.result === 'Win');
+        const total = filtered.length;
+        const netR = filtered.reduce((acc, t) => acc + (t.result === 'Loss' ? -1 : t.rr), 0);
+        const winRate = total ? (wins.length / total) : 0;
+        const avgWin = wins.length ? (wins.reduce((acc, t) => acc + t.rr, 0) / wins.length) : 0;
+        const ev = (winRate * avgWin) - ((1 - winRate) * 1);
+
+        document.getElementById('stat-total').innerText = total;
+        document.getElementById('stat-wr').innerText = Math.round(winRate * 100) + '%';
+        document.getElementById('stat-netR').innerText = netR.toFixed(1) + 'R';
+        
+        const evStat = document.getElementById('stat-ev');
+        evStat.innerText = ev.toFixed(2) + 'R';
+        evStat.style.color = ev > 0 ? "#3BDE6B" : "#FF4D4D";
+        document.getElementById('ev-warning').innerText = ev > 0 ? "EDGE ACTIVE" : "NEGATIVE EDGE";
+
+        document.getElementById('tableBody').innerHTML = filtered.map(t => `
+            <tr>
+                <td>${t.date}</td><td>${t.pair}</td><td>${t.session}</td>
+                <td>${t.risk}%</td><td>${t.rr}R</td>
+                <td class="${t.result === 'Win' ? 'result-win' : 'result-loss'}">${t.result}</td>
+                <td><button onclick="deleteTrade('${t.id}')" style="background:transparent;color:#FF4D4D;border:none;">Del</button></td>
+            </tr>
+        `).join('');
+
+        drawChart(filtered);
+    }
+
+    function drawChart(trades) {
+        const canvas = document.getElementById('equityChart');
+        const ctx = canvas.getContext('2d');
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = canvas.offsetWidth * dpr;
+        canvas.height = canvas.offsetHeight * dpr;
+        ctx.scale(dpr, dpr);
+
+        if(!trades.length) return;
+
+        let equity = 0;
+        const data = trades.slice().reverse().map(t => {
+            const tradePnL = (t.result === 'Loss' ? -1 : t.rr);
+            equity += tradePnL;
+            return { equity, pnl: tradePnL };
+        });
+        data.unshift({ equity: 0, pnl: 0 });
+
+        const maxE = Math.max(...data.map(d => d.equity), 1);
+        const minE = Math.min(...data.map(d => d.equity), -1);
+        const range = maxE - minE;
+        const pad = 30;
+        
+        const getX = (i) => pad + (i * (canvas.offsetWidth - pad * 2) / (data.length - 1));
+        const getY = (v) => (canvas.offsetHeight - pad) - ((v - minE) * (canvas.offsetHeight - pad * 2) / range);
+        const zeroY = getY(0);
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // 1. Draw PnL Histogram (Bars)
+        data.forEach((d, i) => {
+            if(i === 0) return;
+            const x = getX(i);
+            const barW = (canvas.offsetWidth - pad * 2) / (data.length - 1) * 0.4;
+            ctx.fillStyle = d.pnl >= 0 ? 'rgba(59, 222, 107, 0.2)' : 'rgba(255, 77, 77, 0.2)';
+            const h = (d.pnl / range) * (canvas.offsetHeight - pad * 2);
+            ctx.fillRect(x - barW/2, zeroY, barW, -h);
+        });
+
+        // 2. Draw Smooth Equity Curve (Bezier)
+        ctx.beginPath();
+        ctx.strokeStyle = '#3BDE6B';
+        ctx.lineWidth = 3;
+        ctx.lineJoin = 'round';
+        
+        for (let i = 0; i < data.length - 1; i++) {
+            const x1 = getX(i), y1 = getY(data[i].equity);
+            const x2 = getX(i + 1), y2 = getY(data[i+1].equity);
+            const cp = (x1 + x2) / 2; // Control point for smoothing
+            
+            if(i === 0) ctx.moveTo(x1, y1);
+            ctx.bezierCurveTo(cp, y1, cp, y2, x2, y2);
+        }
+        ctx.stroke();
+
+        // 3. Draw Zero Line
+        ctx.setLineDash([5, 5]);
+        ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+        ctx.beginPath();
+        ctx.moveTo(pad, zeroY);
+        ctx.lineTo(canvas.offsetWidth - pad, zeroY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+</script>
+</body>
+</html>
