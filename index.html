@@ -448,61 +448,69 @@ document.getElementById('equityChart').addEventListener('click', (e) => {
 
     /* --- Render & Math --- */
     function renderDashboard() {
-        const pairFilter = document.getElementById('filter-pair').value.toUpperCase();
-        const sessionFilter = document.getElementById('filter-session').value;
-        const timeFilter = document.getElementById('filter-time').value;
-        const now = new Date();
-        const todayStr = now.toISOString().split('T')[0];
+    const pairFilter = document.getElementById('filter-pair').value.toUpperCase();
+    const sessionFilter = document.getElementById('filter-session').value;
+    const timeFilter = document.getElementById('filter-time').value;
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
 
-        let sorted = [...currentTrades].sort((a, b) => new Date(b.date) - new Date(a.date));
-        
-        let filtered = sorted.filter(t => {
-            let matchesTime = true;
-            if (timeFilter === "today") matchesTime = t.date === todayStr;
-            else if (timeFilter === "7") matchesTime = (now - new Date(t.date)) / 86400000 <= 7;
-            else if (timeFilter === "thisMonth") matchesTime = new Date(t.date).getMonth() === now.getMonth();
-            else if (timeFilter === "3months") matchesTime = (now - new Date(t.date)) / 86400000 <= 90;
-            else if (timeFilter === "thisYear") matchesTime = new Date(t.date).getFullYear() === now.getFullYear();
-            else if (timeFilter === "custom") {
-                const s = document.getElementById('date-start').value;
-                const e = document.getElementById('date-end').value;
-                matchesTime = s && e ? (t.date >= s && t.date <= e) : true;
-            }
+    let sorted = [...currentTrades].sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    let filtered = sorted.filter(t => {
+        let matchesTime = true;
+        if (timeFilter === "today") matchesTime = t.date === todayStr;
+        else if (timeFilter === "7") matchesTime = (now - new Date(t.date)) / 86400000 <= 7;
+        else if (timeFilter === "thisMonth") matchesTime = new Date(t.date).getMonth() === now.getMonth();
+        else if (timeFilter === "3months") matchesTime = (now - new Date(t.date)) / 86400000 <= 90;
+        else if (timeFilter === "thisYear") matchesTime = new Date(t.date).getFullYear() === now.getFullYear();
+        else if (timeFilter === "custom") {
+            const s = document.getElementById('date-start').value;
+            const e = document.getElementById('date-end').value;
+            matchesTime = s && e ? (t.date >= s && t.date <= e) : true;
+        }
 
-            const matchesPair = pairFilter === "" || t.pair.includes(pairFilter);
-            const matchesSession = sessionFilter === "All" || t.session === sessionFilter;
-            return matchesTime && matchesPair && matchesSession;
-        });
+        const matchesPair = pairFilter === "" || t.pair.includes(pairFilter);
+        const matchesSession = sessionFilter === "All" || t.session === sessionFilter;
+        return matchesTime && matchesPair && matchesSession;
+    });
 
-        if (timeFilter === "last10") filtered = filtered.slice(0, 10);
+    if (timeFilter === "last10") filtered = filtered.slice(0, 10);
 
-        const wins = filtered.filter(t => t.result === 'Win');
-        const total = filtered.length;
-        const netR = filtered.reduce((acc, t) => acc + (t.result === 'Loss' ? -1 : t.rr), 0);
-        const winRate = total ? (wins.length / total) : 0;
-        const avgWin = wins.length ? (wins.reduce((acc, t) => acc + t.rr, 0) / wins.length) : 0;
-        const ev = (winRate * avgWin) - ((1 - winRate) * 1);
+    const total = filtered.length;
+    const wins = filtered.filter(t => t.result === 'Win');
+    
+    // --- CORRECTED MATH BLOCK ---
+    const netR = filtered.reduce((acc, t) => {
+        const rrValue = parseFloat(t.rr) || 0;
+        if (t.result === 'Win') return acc + rrValue;
+        if (t.result === 'Loss') return acc - 1;
+        return acc; // Breakeven is 0
+    }, 0);
 
-        document.getElementById('stat-total').innerText = total;
-        document.getElementById('stat-wr').innerText = Math.round(winRate * 100) + '%';
-        document.getElementById('stat-netR').innerText = netR.toFixed(1) + 'R';
-        
-        const evStat = document.getElementById('stat-ev');
-        evStat.innerText = ev.toFixed(2) + 'R';
-        evStat.style.color = ev > 0 ? "#3BDE6B" : "#FF4D4D";
-        document.getElementById('ev-warning').innerText = ev > 0 ? "EDGE ACTIVE" : "NEGATIVE EDGE";
+    const winRate = total ? (wins.length / total) : 0;
+    const ev = total ? (netR / total) : 0;
+    // ----------------------------
 
-        document.getElementById('tableBody').innerHTML = filtered.map(t => `
-            <tr>
-                <td>${t.date}</td><td>${t.pair}</td><td>${t.session}</td>
-                <td>${t.risk}%</td><td>${t.rr}R</td>
-                <td class="${t.result === 'Win' ? 'result-win' : 'result-loss'}">${t.result}</td>
-                <td><button onclick="deleteTrade('${t.id}')" style="background:transparent;color:#FF4D4D;border:none;">Del</button></td>
-            </tr>
-        `).join('');
+    document.getElementById('stat-total').innerText = total;
+    document.getElementById('stat-wr').innerText = Math.round(winRate * 100) + '%';
+    document.getElementById('stat-netR').innerText = netR.toFixed(1) + 'R';
+    
+    const evStat = document.getElementById('stat-ev');
+    evStat.innerText = ev.toFixed(2) + 'R';
+    evStat.style.color = ev > 0 ? "#3BDE6B" : "#FF4D4D";
+    document.getElementById('ev-warning').innerText = ev > 0 ? "EDGE ACTIVE" : "NEGATIVE EDGE";
 
-        drawChart(filtered);
-    }
+    document.getElementById('tableBody').innerHTML = filtered.map(t => `
+        <tr>
+            <td>${t.date}</td><td>${t.pair}</td><td>${t.session}</td>
+            <td>${t.risk}%</td><td>${t.rr}R</td>
+            <td class="${t.result === 'Win' ? 'result-win' : 'result-loss'}">${t.result}</td>
+            <td><button onclick="deleteTrade('${t.id}')" style="background:transparent;color:#FF4D4D;border:none;">Del</button></td>
+        </tr>
+    `).join('');
+
+    drawChart(filtered);
+}
 
     function drawChart(trades) {
     const canvas = document.getElementById('equityChart');
@@ -512,17 +520,24 @@ document.getElementById('equityChart').addEventListener('click', (e) => {
     canvas.height = canvas.offsetHeight * dpr;
     ctx.scale(dpr, dpr);
 
-    if(!trades.length) return;
+    if(!trades.length) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        return;
+    }
 
-    // Reset points for hit-testing
     chartPoints = [];
-
     let equity = 0;
+
+    // --- CORRECTED DATA MAPPING ---
     const data = trades.slice().reverse().map(t => {
-        const tradePnL = (t.result === 'Loss' ? -1 : t.rr);
+        let tradePnL = 0;
+        if (t.result === 'Win') tradePnL = parseFloat(t.rr) || 0;
+        else if (t.result === 'Loss') tradePnL = -1;
+        
         equity += tradePnL;
         return { equity, pnl: tradePnL, originalTrade: t };
     });
+    // Start at zero
     data.unshift({ equity: 0, pnl: 0, originalTrade: null });
 
     const maxE = Math.max(...data.map(d => d.equity), 1);
@@ -536,17 +551,17 @@ document.getElementById('equityChart').addEventListener('click', (e) => {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // 1. Draw PnL Histogram (Bars)
+    // 1. Histogram
     data.forEach((d, i) => {
         if(i === 0) return;
         const x = getX(i);
         const barW = (canvas.offsetWidth - pad * 2) / (data.length - 1) * 0.4;
-        ctx.fillStyle = d.pnl >= 0 ? 'rgba(59, 222, 107, 0.2)' : 'rgba(255, 77, 77, 0.2)';
+        ctx.fillStyle = d.pnl > 0 ? 'rgba(59, 222, 107, 0.2)' : d.pnl < 0 ? 'rgba(255, 77, 77, 0.2)' : 'rgba(255,255,255,0.05)';
         const h = (d.pnl / range) * (canvas.offsetHeight - pad * 2);
         ctx.fillRect(x - barW/2, zeroY, barW, -h);
     });
 
-    // 2. Draw Smooth Equity Curve (Bezier)
+    // 2. Line
     ctx.beginPath();
     ctx.strokeStyle = '#3BDE6B';
     ctx.lineWidth = 3;
@@ -560,16 +575,11 @@ document.getElementById('equityChart').addEventListener('click', (e) => {
         if(i === 0) ctx.moveTo(x1, y1);
         ctx.bezierCurveTo(cp, y1, cp, y2, x2, y2);
 
-        // Store the end-point of this segment for the click listener
-        chartPoints.push({
-            x: x2,
-            y: y2,
-            trade: data[i+1].originalTrade
-        });
+        chartPoints.push({ x: x2, y: y2, trade: data[i+1].originalTrade });
     }
     ctx.stroke();
 
-    // 3. Draw Interactive Nodes (Glowy Dots)
+    // 3. Dots
     chartPoints.forEach(p => {
         ctx.shadowBlur = 10;
         ctx.shadowColor = '#3BDE6B';
@@ -577,10 +587,10 @@ document.getElementById('equityChart').addEventListener('click', (e) => {
         ctx.beginPath();
         ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
         ctx.fill();
-        ctx.shadowBlur = 0; // Reset shadow for other elements
+        ctx.shadowBlur = 0;
     });
 
-    // 4. Draw Zero Line
+    // 4. Zero Line
     ctx.setLineDash([5, 5]);
     ctx.strokeStyle = 'rgba(255,255,255,0.1)';
     ctx.beginPath();
