@@ -198,6 +198,11 @@
     </div>
 
     <div id="chart-wrapper"><canvas id="equityChart"></canvas></div>
+    <div id="chart-tooltip" class="card hidden" style="position: absolute; z-index: 100; pointer-events: none; width: 200px; padding: 10px; border-color: #3BDE6B;">
+    <div id="tooltip-date" style="font-size: 10px; color: #9da6b5;"></div>
+    <div id="tooltip-pair" style="font-weight: bold; font-size: 16px;"></div>
+    <div id="tooltip-pnl" style="font-size: 14px;"></div>
+    </div>
 
     <div class="card">
         <div class="table-scroll">
@@ -238,6 +243,7 @@
 
     let currentTrades = [];
     let authMode = 'login';
+    let chartPoints = [];
 
     window.addEventListener('load', () => setTimeout(() => document.getElementById('loading-overlay').classList.add('hidden'), 800));
 
@@ -269,6 +275,38 @@
             errorDiv.innerText = e.code === 'auth/wrong-password' ? "Incorrect password." : "Auth failed.";
         }
     };
+
+// Add the Click Listener to the Canvas
+document.getElementById('equityChart').addEventListener('click', (e) => {
+    const canvas = e.target;
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    // Find the closest point within a 20px radius
+    const closest = chartPoints.find(p => {
+        const dx = mouseX - p.x;
+        const dy = mouseY - p.y;
+        return Math.sqrt(dx*dx + dy*dy) < 20;
+    });
+
+    const tooltip = document.getElementById('chart-tooltip');
+    
+    if (closest && closest.trade) {
+        const t = closest.trade;
+        document.getElementById('tooltip-date').innerText = t.date;
+        document.getElementById('tooltip-pair').innerText = t.pair;
+        document.getElementById('tooltip-pnl').innerText = (t.result === 'Win' ? '+' + t.rr : '-1') + 'R';
+        document.getElementById('tooltip-pnl').style.color = t.result === 'Win' ? '#3BDE6B' : '#FF4D4D';
+        
+        // Position the tooltip near the click
+        tooltip.style.left = (e.pageX + 10) + 'px';
+        tooltip.style.top = (e.pageY - 50) + 'px';
+        tooltip.classList.remove('hidden');
+    } else {
+        tooltip.classList.add('hidden');
+    }
+});
 
     window.resetPassword = async () => {
     const email = document.getElementById('email').value;
@@ -467,69 +505,90 @@
     }
 
     function drawChart(trades) {
-        const canvas = document.getElementById('equityChart');
-        const ctx = canvas.getContext('2d');
-        const dpr = window.devicePixelRatio || 1;
-        canvas.width = canvas.offsetWidth * dpr;
-        canvas.height = canvas.offsetHeight * dpr;
-        ctx.scale(dpr, dpr);
+    const canvas = document.getElementById('equityChart');
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = canvas.offsetWidth * dpr;
+    canvas.height = canvas.offsetHeight * dpr;
+    ctx.scale(dpr, dpr);
 
-        if(!trades.length) return;
+    if(!trades.length) return;
 
-        let equity = 0;
-        const data = trades.slice().reverse().map(t => {
-            const tradePnL = (t.result === 'Loss' ? -1 : t.rr);
-            equity += tradePnL;
-            return { equity, pnl: tradePnL };
-        });
-        data.unshift({ equity: 0, pnl: 0 });
+    // Reset points for hit-testing
+    chartPoints = [];
 
-        const maxE = Math.max(...data.map(d => d.equity), 1);
-        const minE = Math.min(...data.map(d => d.equity), -1);
-        const range = maxE - minE;
-        const pad = 30;
+    let equity = 0;
+    const data = trades.slice().reverse().map(t => {
+        const tradePnL = (t.result === 'Loss' ? -1 : t.rr);
+        equity += tradePnL;
+        return { equity, pnl: tradePnL, originalTrade: t };
+    });
+    data.unshift({ equity: 0, pnl: 0, originalTrade: null });
+
+    const maxE = Math.max(...data.map(d => d.equity), 1);
+    const minE = Math.min(...data.map(d => d.equity), -1);
+    const range = maxE - minE;
+    const pad = 30;
+    
+    const getX = (i) => pad + (i * (canvas.offsetWidth - pad * 2) / (data.length - 1));
+    const getY = (v) => (canvas.offsetHeight - pad) - ((v - minE) * (canvas.offsetHeight - pad * 2) / range);
+    const zeroY = getY(0);
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // 1. Draw PnL Histogram (Bars)
+    data.forEach((d, i) => {
+        if(i === 0) return;
+        const x = getX(i);
+        const barW = (canvas.offsetWidth - pad * 2) / (data.length - 1) * 0.4;
+        ctx.fillStyle = d.pnl >= 0 ? 'rgba(59, 222, 107, 0.2)' : 'rgba(255, 77, 77, 0.2)';
+        const h = (d.pnl / range) * (canvas.offsetHeight - pad * 2);
+        ctx.fillRect(x - barW/2, zeroY, barW, -h);
+    });
+
+    // 2. Draw Smooth Equity Curve (Bezier)
+    ctx.beginPath();
+    ctx.strokeStyle = '#3BDE6B';
+    ctx.lineWidth = 3;
+    ctx.lineJoin = 'round';
+    
+    for (let i = 0; i < data.length - 1; i++) {
+        const x1 = getX(i), y1 = getY(data[i].equity);
+        const x2 = getX(i + 1), y2 = getY(data[i+1].equity);
+        const cp = (x1 + x2) / 2;
         
-        const getX = (i) => pad + (i * (canvas.offsetWidth - pad * 2) / (data.length - 1));
-        const getY = (v) => (canvas.offsetHeight - pad) - ((v - minE) * (canvas.offsetHeight - pad * 2) / range);
-        const zeroY = getY(0);
+        if(i === 0) ctx.moveTo(x1, y1);
+        ctx.bezierCurveTo(cp, y1, cp, y2, x2, y2);
 
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // 1. Draw PnL Histogram (Bars)
-        data.forEach((d, i) => {
-            if(i === 0) return;
-            const x = getX(i);
-            const barW = (canvas.offsetWidth - pad * 2) / (data.length - 1) * 0.4;
-            ctx.fillStyle = d.pnl >= 0 ? 'rgba(59, 222, 107, 0.2)' : 'rgba(255, 77, 77, 0.2)';
-            const h = (d.pnl / range) * (canvas.offsetHeight - pad * 2);
-            ctx.fillRect(x - barW/2, zeroY, barW, -h);
+        // Store the end-point of this segment for the click listener
+        chartPoints.push({
+            x: x2,
+            y: y2,
+            trade: data[i+1].originalTrade
         });
-
-        // 2. Draw Smooth Equity Curve (Bezier)
-        ctx.beginPath();
-        ctx.strokeStyle = '#3BDE6B';
-        ctx.lineWidth = 3;
-        ctx.lineJoin = 'round';
-        
-        for (let i = 0; i < data.length - 1; i++) {
-            const x1 = getX(i), y1 = getY(data[i].equity);
-            const x2 = getX(i + 1), y2 = getY(data[i+1].equity);
-            const cp = (x1 + x2) / 2; // Control point for smoothing
-            
-            if(i === 0) ctx.moveTo(x1, y1);
-            ctx.bezierCurveTo(cp, y1, cp, y2, x2, y2);
-        }
-        ctx.stroke();
-
-        // 3. Draw Zero Line
-        ctx.setLineDash([5, 5]);
-        ctx.strokeStyle = 'rgba(255,255,255,0.1)';
-        ctx.beginPath();
-        ctx.moveTo(pad, zeroY);
-        ctx.lineTo(canvas.offsetWidth - pad, zeroY);
-        ctx.stroke();
-        ctx.setLineDash([]);
     }
+    ctx.stroke();
+
+    // 3. Draw Interactive Nodes (Glowy Dots)
+    chartPoints.forEach(p => {
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#3BDE6B';
+        ctx.fillStyle = '#3BDE6B';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0; // Reset shadow for other elements
+    });
+
+    // 4. Draw Zero Line
+    ctx.setLineDash([5, 5]);
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+    ctx.beginPath();
+    ctx.moveTo(pad, zeroY);
+    ctx.lineTo(canvas.offsetWidth - pad, zeroY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+}
 </script>
 </body>
 </html>
