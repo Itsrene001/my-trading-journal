@@ -150,7 +150,7 @@
         <textarea id="trade-notes" placeholder="Execution notes..."></textarea>
         <div style="display:flex; gap: 10px; margin-top: 15px;">
             <button onclick="saveTradeToCloud()" style="flex: 2;">Save Trade</button>
-            <button class="secondary" onclick="exportCSV()">Export</button>
+            <button onclick="exportTrades()">Export CSV</button>
         </div>
     </div>
 
@@ -356,6 +356,50 @@
         await addDoc(collection(db, "users", auth.currentUser.uid, "trades"), trade);
         fetchTrades();
     };
+
+    window.exportTrades = async () => {
+    try {
+        const user = auth.currentUser;
+        if (!user) throw new Error("No user logged in");
+
+        // FIX: Point to the SUB-COLLECTION where your data actually lives
+        const tradesRef = collection(db, "users", user.uid, "trades");
+        const querySnapshot = await getDocs(tradesRef);
+        
+        if (querySnapshot.empty) {
+            alert("No trades found in your account to export!");
+            return;
+        }
+
+        // Build the CSV
+        let csvContent = "Date,Pair,Session,Result,RR,Risk,Notes\n";
+
+        querySnapshot.forEach((doc) => {
+            const t = doc.data();
+            // Clean notes: remove newlines and commas so they don't break the CSV columns
+            const cleanNote = t.notes ? t.notes.replace(/[\n,]/g, " ") : "";
+            const row = `${t.date},${t.pair},${t.session},${t.result},${t.rr},${t.risk},${cleanNote}\n`;
+            csvContent += row;
+        });
+
+        // Trigger Download
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        const dateStr = new Date().toISOString().split('T')[0];
+        
+        link.setAttribute("href", url);
+        link.setAttribute("download", `trading_journal_${dateStr}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        console.log("Export successful from sub-collection.");
+    } catch (error) {
+        console.error("Export Error:", error);
+        alert("Export failed: " + error.message);
+    }
+};
 
     window.deleteTrade = async (id) => {
         if(confirm("Delete trade?")) {
