@@ -472,20 +472,38 @@
     }
 
     window.saveTradeToCloud = async () => {
-        const trade = {
-            date: document.getElementById('trade-date').value,
-            pair: document.getElementById('trade-pair').value.toUpperCase(),
-            session: document.getElementById('trade-session').value,
-            result: document.getElementById('trade-result').value,
-            rr: parseFloat(document.getElementById('trade-rr').value || 0),
-            risk: parseFloat(document.getElementById('trade-risk').value || 0),
-            notes: document.getElementById('trade-notes').value,
-            createdAt: serverTimestamp()
-        };
-        if(!trade.date || !trade.pair) return alert("Date and Pair required.");
-        await addDoc(collection(db, "users", auth.currentUser.uid, "trades"), trade);
-        fetchTrades();
+    const trade = {
+        date: document.getElementById('trade-date').value,
+        pair: document.getElementById('trade-pair').value.toUpperCase(),
+        session: document.getElementById('trade-session').value,
+        result: document.getElementById('trade-result').value,
+        rr: parseFloat(document.getElementById('trade-rr').value || 0),
+        risk: parseFloat(document.getElementById('trade-risk').value || 0),
+        notes: document.getElementById('trade-notes').value,
+        createdAt: serverTimestamp()
     };
+
+    if(!trade.date || !trade.pair) return alert("Please fill in Date and Instrument.");
+
+    try {
+        await addDoc(collection(db, "users", auth.currentUser.uid, "trades"), trade);
+        
+        // --- ADD THESE LINES TO CLEAR THE FORM ---
+        document.getElementById('trade-pair').value = '';
+        document.getElementById('trade-rr').value = '';
+        document.getElementById('trade-risk').value = '';
+        document.getElementById('trade-notes').value = '';
+        
+        // Optional: Reset dropdowns to first option
+        document.getElementById('trade-session').selectedIndex = 0;
+        document.getElementById('trade-result').selectedIndex = 0;
+        // ------------------------------------------
+
+        fetchTrades(); // Refresh the list
+    } catch (e) {
+        console.error("Error saving trade: ", e);
+    }
+};
 
     window.exportTrades = async () => {
     try {
