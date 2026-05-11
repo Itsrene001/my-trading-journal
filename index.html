@@ -882,21 +882,17 @@ function showResultNotification(pair, result) {
 function renderCalendar(trades) {
     const grid = document.getElementById('calendar-grid');
     const monthLabel = document.getElementById('calendar-month-label');
-    if (!grid) return;
-    
     grid.innerHTML = '';
     
-    // 1. Group PnL by date (using local date keys)
-    const dailyData = {};
+    // 1. Group PnL by date
+    const dailyPnL = {};
     trades.forEach(t => {
-        if (!dailyData[t.date]) dailyData[t.date] = { pnl: 0, count: 0 };
-        const tradePnl = t.result === 'Win' ? (parseFloat(t.rr) || 0) : (t.result === 'Loss' ? -1 : 0);
-        dailyData[t.date].pnl += tradePnl;
-        dailyData[t.date].count += 1;
+        dailyPnL[t.date] = (dailyPnL[t.date] || 0) + (t.result === 'Win' ? t.rr : (t.result === 'Loss' ? -1 : 0));
     });
 
-    // 2. Calculate the target month and year based on offset
+    // 2. Calculate the target month and year
     const now = new Date();
+    // This adjusts the month based on your Back/Next buttons
     const viewDate = new Date(now.getFullYear(), now.getMonth() - calendarOffset, 1);
     const month = viewDate.getMonth();
     const year = viewDate.getFullYear();
@@ -905,81 +901,43 @@ function renderCalendar(trades) {
         monthLabel.innerText = viewDate.toLocaleString('default', { month: 'long', year: 'numeric' });
     }
 
-    // 3. Weekday Headers (Sun, Mon, etc.)
+    // 3. Weekday Headers
     const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     daysOfWeek.forEach(day => {
         const header = document.createElement('div');
-        header.style.textAlign = 'center';
-        header.style.fontSize = '10px';
-        header.style.opacity = '0.5';
-        header.style.paddingBottom = '5px';
+        header.className = 'weekday-header';
         header.innerText = day;
         grid.appendChild(header);
     });
 
     // 4. Calculate Calendar Layout
-    const firstDayIndex = new Date(year, month, 1).getDay(); 
-    const daysInMonth = new Date(year, month + 1, 0).getDate(); 
+    const firstDayIndex = new Date(year, month, 1).getDay(); // 0 (Sun) to 6 (Sat)
+    const daysInMonth = new Date(year, month + 1, 0).getDate(); // Get last day of month
     const daysInPrevMonth = new Date(year, month, 0).getDate();
 
-    // 5. Add Faded Days from Previous Month
+    // 5. Add Padding from Previous Month (Faded)
     for (let i = firstDayIndex - 1; i >= 0; i--) {
         const prevDay = daysInPrevMonth - i;
-        createDayElement(grid, year, month - 1, prevDay, dailyData, true);
+        createDayElement(grid, year, month - 1, prevDay, dailyPnL, true);
     }
 
     // 6. Add Current Month Days
     for (let i = 1; i <= daysInMonth; i++) {
-        createDayElement(grid, year, month, i, dailyData, false);
+        createDayElement(grid, year, month, i, dailyPnL, false);
     }
 }
 
-// THE HELPER FUNCTION (This builds the actual squares)
-function createDayElement(grid, year, month, day, dailyData, isFaded) {
-    // FIX: Generate date string using LOCAL time values
-    const d = new Date(year, month, day);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    const dateStr = `${y}-${m}-${dd}`;
-
-    const dayInfo = dailyData[dateStr] || { pnl: 0, count: 0 };
-    const dayEl = document.createElement('div');
     
-    dayEl.className = 'calendar-day';
-    if (isFaded) dayEl.style.opacity = '0.2';
-    
-    // Logic for coloring and clicking
-    if (!isFaded && dayInfo.count > 0) {
-        dayEl.style.cursor = 'pointer';
-        dayEl.onclick = () => showFloatingDetails(dateStr);
-        
-        if (dayInfo.pnl > 0) {
-            dayEl.style.borderColor = '#3BDE6B';
-            dayEl.style.background = 'rgba(59, 222, 107, 0.15)';
-        } else if (dayInfo.pnl < 0) {
-            dayEl.style.borderColor = '#FF4D4D';
-            dayEl.style.background = 'rgba(255, 77, 77, 0.15)';
-        }
-    }
-
-    dayEl.innerHTML = `
-        <span style="opacity:0.5; font-size:9px; position:absolute; top:5px; left:5px;">${day}</span>
-        <span style="color: ${dayInfo.pnl >= 0 ? '#3BDE6B' : '#FF4D4D'}; font-weight:bold; font-size: 11px;">
-            ${!isFaded && dayInfo.count > 0 ? (dayInfo.pnl > 0 ? '+' : '') + dayInfo.pnl.toFixed(1) + 'R' : ''}
-        </span>
-        <span style="font-size:7px; opacity:0.6; margin-top: 2px;">
-            ${!isFaded && dayInfo.count > 0 ? dayInfo.count + ' trades' : ''}
-        </span>
-    `;
-    
-    dayEl.style.position = 'relative'; // For the absolute date number
-    grid.appendChild(dayEl);
-}
 // Helper to keep the code clean
 function createDayElement(container, year, month, day, dailyPnL, isFaded) {
     const d = new Date(year, month, day);
-    const dateStr = d.toISOString().split('T')[0];
+
+    // This keeps the date exactly as it appears on your local computer clock
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+
+    const dateStr = `${y}-${m}-${dd}`;
     const pnl = dailyPnL[dateStr] || 0;
 
     const dayEl = document.createElement('div');
@@ -1003,7 +961,6 @@ function createDayElement(container, year, month, day, dailyPnL, isFaded) {
     `;
     container.appendChild(dayEl);
 }
-
 
 let pieSlices = []; // To store slice data for hover detection
 
