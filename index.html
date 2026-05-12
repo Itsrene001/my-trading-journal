@@ -581,20 +581,19 @@
             "theme": "dark",
             "style": "1",
             "locale": "en",
-            "toolbar_bg": "#f1f3f6",
+            "toolbar_bg": "#171a21",
             "enable_publishing": false,
             "withdateranges": true,
-            "hide_side_toolbar": false, // Shows the drawing tools
+            "hide_side_toolbar": false, // Essential for analysis
             "allow_symbol_change": true,
-            "save_image": true,
-            "container_id": "tv-advanced-chart",
-            "studies": [
-                "ROC@tv-basicstudies",
-                "StochasticRSI@tv-basicstudies"
-            ],
-            "show_popup_button": true,
+            "show_popup_button": true,    // This is your "Sync" workaround
             "popup_width": "1000",
-            "popup_height": "650"
+            "popup_height": "650",
+            "container_id": "tv-advanced-chart",
+            "overrides": {
+            "mainSeriesProperties.candleStyle.upColor": "#3BDE6B",
+            "mainSeriesProperties.candleStyle.downColor": "#FF4D4D"
+            }
         });
     }
 };
