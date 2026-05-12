@@ -770,7 +770,7 @@
         if (editingTradeId) {
             // --- UPDATE EXISTING TRADE ---
             const tradeRef = doc(db, "users", auth.currentUser.uid, "trades", editingTradeId);
-            await setDoc(tradeRef, trade, { merge: true });
+            await updateDoc(tradeRef, trade);
             
             // Reset the button and state
             const submitBtn = document.querySelector('#tab-terminal button[onclick="saveTradeToCloud()"]');
