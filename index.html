@@ -965,14 +965,13 @@ document.addEventListener('mousedown', (e) => {
         <tr>
             <td>${t.date}</td><td>${t.pair}</td><td>${t.session}</td>
             <td>${t.risk}%</td><td>${t.rr}R</td>
-            <td class="${t.result === 'Win' ? 'result-win' : (t.result === 'Loss' ? 'result-loss' : 'result-breakeven')}">
-    ${t.result}
-</td>
-            <td><button onclick="deleteTrade('${t.id}')" style="background:transparent;color:#FF4D4D;border:none;">Del</button></td>
-            <td>
-                ${t.chartLink ? `<a href="${t.chartLink}" target="_blank" style="color:#3BDE6B; text-decoration:none; margin-right:10px;">Chart</a>` : ''}
-                <button onclick="deleteTrade('${t.id}')" style="background:transparent;color:#FF4D4D;border:none; width:auto; display:inline;">Del</button>
-            </td>
+           <td class="${t.result === 'Win' ? 'result-win' : (t.result === 'Loss' ? 'result-loss' : 'result-breakeven')}">${t.result}</td>
+        <td>
+            <div style="display: flex; align-items: center; gap: 12px;">
+                ${t.chartLink ? `<a href="${t.chartLink}" target="_blank" style="color:#3BDE6B; text-decoration:none;">Chart</a>` : ''}
+                <button onclick="deleteTrade('${t.id}')" style="background:transparent; color:#FF4D4D; border:none; width:auto; padding:0; cursor:pointer;">Del</button>
+            </div>
+        </td>
         </tr>
     `).join('');
 
